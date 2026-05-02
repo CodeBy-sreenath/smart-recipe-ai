@@ -2,15 +2,48 @@
 
 import { useState, useRef } from "react";
 
+// Compress image before sending to API
+function compressImage(file, maxWidth = 1024, quality = 0.85) {
+  return new Promise((resolve) => {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+
+    img.onload = () => {
+      // Calculate new dimensions
+      let { width, height } = img;
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Get compressed base64
+      const compressed = canvas.toDataURL("image/jpeg", quality);
+      resolve({
+        base64: compressed.split(",")[1],
+        mediaType: "image/jpeg",
+        dataUrl: compressed,
+      });
+    };
+
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export default function InputModes({ onAddIngredients, onGenerateFromImage }) {
   const [mode, setMode] = useState("text");
   const [textValue, setTextValue] = useState("");
   const [preview, setPreview] = useState(null);
-  const [imageBase64, setImageBase64] = useState(null);
-  const [mediaType, setMediaType] = useState("image/jpeg");
+  const [imageData, setImageData] = useState(null); // { base64, mediaType }
   const [isDragging, setIsDragging] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("Press the button and speak your ingredients…");
+  const [compressing, setCompressing] = useState(false);
+  const [imageInfo, setImageInfo] = useState(null); // size info
   const fileRef = useRef(null);
   const recognitionRef = useRef(null);
   const accumulatedRef = useRef("");
@@ -23,21 +56,56 @@ export default function InputModes({ onAddIngredients, onGenerateFromImage }) {
     setTextValue("");
   };
 
-  const handleFile = (file) => {
-    if (!file || !file.type.startsWith("image/")) return;
-    setMediaType(file.type);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setPreview(e.target.result);
-      setImageBase64(e.target.result.split(",")[1]);
-    };
-    reader.readAsDataURL(file);
+  const handleFile = async (file) => {
+    if (!file) return;
+
+    // Validate type
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowed.includes(file.type)) {
+      alert("Please upload a JPEG, PNG, WEBP or GIF image.");
+      return;
+    }
+
+    // Validate size before compression (max 20MB raw)
+    if (file.size > 20 * 1024 * 1024) {
+      alert("Image is too large. Please use an image under 20MB.");
+      return;
+    }
+
+    setCompressing(true);
+    setImageInfo(null);
+
+    try {
+      const { base64, mediaType, dataUrl } = await compressImage(file);
+
+      const compressedSize = Math.round((base64.length * 3) / 4 / 1024);
+      setImageInfo({
+        name: file.name,
+        originalSize: Math.round(file.size / 1024),
+        compressedSize,
+      });
+
+      setPreview(dataUrl);
+      setImageData({ base64, mediaType });
+    } catch (err) {
+      alert("Failed to process image. Please try another.");
+      console.error(err);
+    } finally {
+      setCompressing(false);
+    }
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
     handleFile(e.dataTransfer.files[0]);
+  };
+
+  const clearImage = () => {
+    setPreview(null);
+    setImageData(null);
+    setImageInfo(null);
+    if (fileRef.current) fileRef.current.value = "";
   };
 
   const toggleVoice = () => {
@@ -102,7 +170,7 @@ export default function InputModes({ onAddIngredients, onGenerateFromImage }) {
           ))}
         </div>
 
-        {/* TEXT */}
+        {/* TEXT MODE */}
         {mode === "text" && (
           <div className="text-input-row">
             <input
@@ -116,46 +184,94 @@ export default function InputModes({ onAddIngredients, onGenerateFromImage }) {
           </div>
         )}
 
-        {/* IMAGE */}
+        {/* IMAGE MODE */}
         {mode === "image" && (
           <div>
-            <div
-              className={`upload-zone ${isDragging ? "drag" : ""}`}
-              onClick={() => fileRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-            >
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                style={{ display: "none" }}
-                onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-              />
-              <div className="upload-icon">📸</div>
-              <div className="upload-text">
-                Click or drag & drop a photo of your ingredients
-                <br />
-                <span className="upload-accent">AI will identify them automatically</span>
-              </div>
-              {preview && (
-                <img src={preview} alt="Preview" className="preview-img" />
-              )}
-            </div>
-            {imageBase64 && (
-              <button
-                className="add-btn"
-                style={{ marginTop: "10px", width: "100%" }}
-                onClick={() => onGenerateFromImage(imageBase64, mediaType)}
+            {/* Drop Zone */}
+            {!preview && (
+              <div
+                className={`upload-zone ${isDragging ? "drag" : ""} ${compressing ? "compressing" : ""}`}
+                onClick={() => !compressing && fileRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
               >
-                🔍 Analyze Image & Generate Recipes
-              </button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  style={{ display: "none" }}
+                  onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+                />
+                {compressing ? (
+                  <>
+                    <div className="upload-icon">⚙️</div>
+                    <div className="upload-text">Compressing image…</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="upload-icon">📸</div>
+                    <div className="upload-text">
+                      Click or drag & drop a photo of your ingredients
+                      <br />
+                      <span className="upload-accent">AI will identify them automatically</span>
+                      <br />
+                      <span style={{ fontSize: "11px", opacity: 0.6 }}>
+                        JPEG, PNG, WEBP, GIF · Max 20MB
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
+
+            {/* Preview */}
+            {preview && (
+              <div className="image-preview-wrap">
+                <img src={preview} alt="Ingredient preview" className="preview-img" />
+
+                {/* Image Info */}
+                {imageInfo && (
+                  <div className="image-info">
+                    <span>📁 {imageInfo.name}</span>
+                    <span>
+                      {imageInfo.originalSize}KB → {imageInfo.compressedSize}KB
+                      {imageInfo.compressedSize < imageInfo.originalSize && (
+                        <span className="compressed-badge">compressed</span>
+                      )}
+                    </span>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="image-actions">
+                  <button
+                    className="add-btn"
+                    onClick={() => onGenerateFromImage(imageData.base64, imageData.mediaType)}
+                  >
+                    🔍 Analyze & Generate Recipes
+                  </button>
+                  <button className="clear-image-btn" onClick={clearImage}>
+                    🗑 Remove
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Tips */}
+            <div className="image-tips">
+              <p>💡 <strong>Tips for best results:</strong></p>
+              <ul>
+                <li>Good lighting helps Claude identify ingredients accurately</li>
+                <li>Lay ingredients flat and spread them out</li>
+                <li>Include packaging labels if helpful</li>
+                <li>Fridge/pantry shelf photos work great too</li>
+              </ul>
+            </div>
           </div>
         )}
 
-        {/* VOICE */}
+        {/* VOICE MODE */}
         {mode === "voice" && (
           <div>
             <button
