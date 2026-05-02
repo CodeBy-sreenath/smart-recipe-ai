@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
 //import connectDB from "@/lib/mongodb";
-import RecipeHistory from "@/models/RecipeHistory";
+//import RecipeHistory from "@/models/RecipeHistory";
+import RecipeHistory from "@/app/bck_lib/RecipeHistory";
 import connectDB from "@/app/bck_lib/mongodb";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });

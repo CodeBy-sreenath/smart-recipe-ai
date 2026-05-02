@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 //import connectDB from "@/lib/mongodb";
-import RecipeHistory from "@/models/RecipeHistory";
+//import RecipeHistory from "@/models/RecipeHistory";
 import connectDB from "@/app/bck_lib/mongodb";
+import RecipeHistory from "@/app/bck_lib/RecipeHistory";
+//import RecipeHistory from "@/app/models/RecipeHistory";
 
 export async function GET(req) {
   await connectDB()
