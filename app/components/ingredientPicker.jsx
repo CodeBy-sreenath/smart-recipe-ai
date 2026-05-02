@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CATEGORIES } from "@/lib/ingredients";
+import { CATEGORIES } from "../lib/ingredients";
+//import { CATEGORIES } from "./lib/ingredients";
 
 export default function IngredientPicker({ selected, onToggle, onRemove, onClearAll }) {
   const [activeCategory, setActiveCategory] = useState("Proteins");
