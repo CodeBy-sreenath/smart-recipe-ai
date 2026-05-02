@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import connectDB from "@/lib/mongodb";
+//import connectDB from "@/lib/mongodb";
 import RecipeHistory from "@/models/RecipeHistory";
+import connectDB from "@/app/bck_lib/mongodb";
 
 // GET — fetch all history for a user
 export async function GET(req) {
@@ -17,7 +18,7 @@ export async function GET(req) {
 
 // POST — save a new recipe session
 export async function POST(req) {
-  await connectDB();
+  await connectDB
   const body = await req.json();
   const { userId = "guest", ingredients, detected, recipes } = body;
 
