@@ -1,4 +1,14 @@
-export default function HistoryTab({ history, onLoad }) {
+export default function HistoryTab({ history, loading, onLoad, onRefresh }) {
+
+  if (loading) {
+    return (
+      <div className="loading-wrap">
+        <div className="spinner" />
+        <p className="loading-text">Loading your history…</p>
+      </div>
+    );
+  }
+
   if (history.length === 0) {
     return (
       <div className="empty-history">
@@ -13,10 +23,18 @@ export default function HistoryTab({ history, onLoad }) {
 
   return (
     <div>
-      <div className="section-title">Recipe History</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+        <div className="section-title" style={{ margin: 0 }}>Recipe History</div>
+        <button className="clear-btn" onClick={onRefresh}>🔄 Refresh</button>
+      </div>
+
       <div className="history-list">
         {history.map((entry) => (
-          <div key={entry.id} className="history-item" onClick={() => onLoad(entry)}>
+          <div
+            key={entry._id}
+            className="history-item"
+            onClick={() => onLoad(entry)}
+          >
             <span className="history-thumb">
               {entry.recipes?.[0]?.emoji || "🍽️"}
             </span>
@@ -25,10 +43,15 @@ export default function HistoryTab({ history, onLoad }) {
                 {entry.recipes?.[0]?.name || "Recipe Session"}
               </div>
               <div className="history-ingredients">
-                {entry.ingredients.slice(0, 6).join(", ")}
-                {entry.ingredients.length > 6 ? "…" : ""}
+                {entry.ingredients?.slice(0, 5).join(", ")}
+                {entry.ingredients?.length > 5 ? "…" : ""}
               </div>
-              <div className="history-time">{entry.time}</div>
+              <div className="history-time">
+                {new Date(entry.createdAt).toLocaleString()}
+                {entry.fromImage && (
+                  <span className="image-badge">📷 from image</span>
+                )}
+              </div>
             </div>
             <span className="history-count">
               {entry.recipes?.length || 0} recipes
